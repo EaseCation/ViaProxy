@@ -94,6 +94,9 @@ dependencies {
     includeInJar("io.netty:netty-codec-socks:4.2.10.Final") {
         transitive = false
     }
+    includeInJar("io.netty:netty-codec-base:4.2.10.Final") {
+        transitive = false
+    }
     includeInJar("net.raphimc:MinecraftAuth:5.0.0") {
         exclude group: "com.google.code.gson", module: "gson"
     }
