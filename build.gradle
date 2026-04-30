@@ -50,12 +50,12 @@ repositories {
 }
 
 dependencies {
-    includeInJar("com.viaversion:viaversion-common:5.7.2") {
+    includeInJar("com.viaversion:viaversion-common:5.9.0") {
         attributes {
             attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
         }
     }
-    includeInJar("com.viaversion:viabackwards-common:5.7.2") {
+    includeInJar("com.viaversion:viabackwards-common:5.9.0") {
         attributes {
             attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
         }
