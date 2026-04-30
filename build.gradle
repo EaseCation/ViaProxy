@@ -50,8 +50,16 @@ repositories {
 }
 
 dependencies {
-    includeInJar "com.viaversion:viaversion-common:5.7.2"
-    includeInJar "com.viaversion:viabackwards-common:5.7.2"
+    includeInJar("com.viaversion:viaversion-common:5.7.2") {
+        attributes {
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
+        }
+    }
+    includeInJar("com.viaversion:viabackwards-common:5.7.2") {
+        attributes {
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
+        }
+    }
     includeInJar "com.viaversion:viarewind-common:4.0.15"
     includeInJar "net.raphimc:ViaLegacy:3.0.14"
     includeInJar "com.viaversion:viaaprilfools-common:4.0.9"
