@@ -60,7 +60,7 @@ dependencies {
             attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
         }
     }
-    includeInJar "com.viaversion:viarewind-common:4.0.15"
+    includeInJar "com.viaversion:viarewind-common:4.1.0"
     includeInJar "net.raphimc:ViaLegacy:3.0.14"
     includeInJar "com.viaversion:viaaprilfools-common:4.0.9"
     includeInJar "net.raphimc:ViaBedrock:0.0.26-20260301.185942-3"
