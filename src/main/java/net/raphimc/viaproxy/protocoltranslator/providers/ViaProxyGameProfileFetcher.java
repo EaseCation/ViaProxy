@@ -62,7 +62,7 @@ public class ViaProxyGameProfileFetcher extends GameProfileFetcher {
         final com.mojang.authlib.GameProfile gameProfile = result.profile();
         final GameProfile.Property[] properties = new GameProfile.Property[gameProfile.getProperties().size()];
         int i = 0;
-        for (final Map.Entry<String, Property> entry : gameProfile.getProperties().entries()) {
+        for (Map.Entry<String, Property> entry : gameProfile.getProperties().entries()) {
             properties[i++] = new GameProfile.Property(entry.getValue().name(), entry.getValue().value(), entry.getValue().signature());
         }
         return new GameProfile(gameProfile.getName(), gameProfile.getId(), properties);
