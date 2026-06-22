@@ -35,7 +35,9 @@ import net.raphimc.vialegacy.api.util.GameProfileUtil;
 import net.raphimc.vialegacy.protocol.release.r1_6_4tor1_7_2_5.storage.ProtocolMetadataStorage;
 import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.plugins.events.ClientLoggedInEvent;
+import net.raphimc.viaproxy.plugins.events.ClientSessionVerifyEvent;
 import net.raphimc.viaproxy.plugins.events.ShouldVerifyOnlineModeEvent;
+import net.raphimc.viaproxy.plugins.events.types.ClientSessionVerifier;
 import net.raphimc.viaproxy.proxy.LoginState;
 import net.raphimc.viaproxy.proxy.external_interface.AuthLibServices;
 import net.raphimc.viaproxy.proxy.external_interface.ExternalInterface;
@@ -118,25 +120,35 @@ public class LoginPacketHandler extends PacketHandler {
             final SecretKey secretKey = CryptUtil.decryptSecretKey(KEY_PAIR.getPrivate(), loginKeyPacket.encryptedSecretKey);
             this.proxyConnection.getC2P().attr(MCPipeline.ENCRYPTION_ATTRIBUTE_KEY).set(new AESEncryption(secretKey));
 
+            final String userName = this.proxyConnection.getGameProfile().getName();
+            final String serverHash = new BigInteger(CryptUtil.computeServerIdHash("", KEY_PAIR.getPublic(), secretKey)).toString(16);
+            final ClientSessionVerifyEvent verifyEvent = ViaProxy.EVENT_MANAGER.call(new ClientSessionVerifyEvent(this.proxyConnection, userName, serverHash));
+            final ClientSessionVerifier verifier = verifyEvent.getVerifier();
             HTTP_EXECUTOR.submit(() -> {
-                final String userName = this.proxyConnection.getGameProfile().getName();
                 try {
-                    final String serverHash = new BigInteger(CryptUtil.computeServerIdHash("", KEY_PAIR.getPublic(), secretKey)).toString(16);
-                    final ProfileResult profileResult = AuthLibServices.SESSION_SERVICE.hasJoinedServer(userName, serverHash, null);
-                    if (profileResult == null) {
-                        Logger.u_err("auth", this.proxyConnection, "Invalid session");
-                        this.proxyConnection.kickClient("§cInvalid session! Please restart minecraft (and the launcher) and try again.");
+                    final GameProfile profile;
+                    if (verifier != null) {
+                        profile = verifier.verify(this.proxyConnection, userName, serverHash);
                     } else {
-                        this.proxyConnection.setGameProfile(profileResult.profile());
+                        final ProfileResult profileResult = AuthLibServices.SESSION_SERVICE.hasJoinedServer(userName, serverHash, null);
+                        profile = profileResult != null ? profileResult.profile() : null;
+                    }
+                    if (profile == null) {
+                        Logger.u_err("auth", this.proxyConnection, "Invalid session");
+                        this.proxyConnection.kickClient(verifyEvent.getDeniedMessage());
+                    } else {
+                        this.proxyConnection.setGameProfile(profile);
                     }
                     Logger.u_info("auth", this.proxyConnection, "Authenticated as " + this.proxyConnection.getGameProfile().getId().toString());
                 } catch (CloseAndReturn ignored) {
+                    return;
                 } catch (Throwable e) {
                     Logger.LOGGER.error("Failed to make session request for user '" + userName + "'!", e);
                     try {
-                        this.proxyConnection.kickClient("§cFailed to authenticate with Mojang servers! Please try again later.");
+                        this.proxyConnection.kickClient(verifyEvent.getErrorMessage());
                     } catch (Throwable ignored) {
                     }
+                    return;
                 }
 
                 this.proxyConnection.getC2P().eventLoop().execute(() -> {
