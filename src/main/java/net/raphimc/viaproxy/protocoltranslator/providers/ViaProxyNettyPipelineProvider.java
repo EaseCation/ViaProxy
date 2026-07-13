@@ -27,10 +27,21 @@ import net.raphimc.viabedrock.netty.raknet.MessageCodec;
 import net.raphimc.viabedrock.protocol.data.enums.bedrock.generated.PacketCompressionAlgorithm;
 import net.raphimc.viabedrock.protocol.provider.NettyPipelineProvider;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
+import org.cloudburstmc.netty.handler.codec.raknet.common.RakSessionCodec;
 
 import javax.crypto.SecretKey;
 
 public class ViaProxyNettyPipelineProvider extends NettyPipelineProvider {
+
+    @Override
+    public int getServerTransportLatencyMillis(final UserConnection user) {
+        final Channel channel = ProxyConnection.fromUserConnection(user).getChannel();
+        final RakSessionCodec sessionCodec = channel.pipeline().get(RakSessionCodec.class);
+        if (sessionCodec == null) return -1;
+
+        final long ping = sessionCodec.getPing();
+        return ping > 0L && ping <= Integer.MAX_VALUE ? (int) ping : -1;
+    }
 
     @Override
     public void enableCompression(final UserConnection user, final PacketCompressionAlgorithm preferredCompressionAlgorithm, final int threshold) {
