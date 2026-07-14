@@ -31,13 +31,21 @@ import java.util.concurrent.TimeUnit;
 @Plugin(name = "Sls", category = Node.CATEGORY, elementType = Appender.ELEMENT_TYPE, printObject = true)
 public final class SlsAppender extends AbstractAppender {
 
-    private final AsyncSlsReporter reporter;
-    private final SlsConfiguration configuration;
+    private static AsyncSlsReporter sharedReporter;
+    private static int sharedReferences;
 
-    private SlsAppender(final String name, final Filter filter, final AsyncSlsReporter reporter, final SlsConfiguration configuration) {
+    private final SlsConfiguration configuration;
+    private final PrintStream diagnostics;
+    private final boolean shared;
+    private AsyncSlsReporter reporter;
+
+    private SlsAppender(final String name, final Filter filter, final SlsConfiguration configuration,
+                        final PrintStream diagnostics, final AsyncSlsReporter reporter, final boolean shared) {
         super(name, filter, null, true, Property.EMPTY_ARRAY);
-        this.reporter = reporter;
         this.configuration = configuration;
+        this.diagnostics = diagnostics;
+        this.reporter = reporter;
+        this.shared = shared;
     }
 
     @PluginFactory
@@ -54,21 +62,32 @@ public final class SlsAppender extends AbstractAppender {
         if (configuration.isEmpty()) {
             final List<String> missing = SlsConfiguration.missingVariables(environment);
             diagnostics.println("[ViaProxy SLS] Appender disabled; missing environment variables: " + String.join(", ", missing));
-            return new SlsAppender(name, filter, null, null);
+            return new SlsAppender(name, filter, null, diagnostics, null, true);
         }
 
-        final AsyncSlsReporter reporter = new AsyncSlsReporter(new AliyunSlsTransport(configuration.get()), diagnostics);
-        return new SlsAppender(name, filter, reporter, configuration.get());
+        return new SlsAppender(name, filter, configuration.get(), diagnostics, null, true);
     }
 
     static SlsAppender createForTesting(final String name, final AsyncSlsReporter reporter, final SlsConfiguration configuration) {
-        return new SlsAppender(name, null, reporter, configuration);
+        return new SlsAppender(name, null, configuration, System.err, reporter, false);
     }
 
     @Override
     public void start() {
         super.start();
-        if (this.reporter != null) this.reporter.start();
+        if (this.configuration == null) return;
+        if (this.shared) {
+            synchronized (SlsAppender.class) {
+                if (sharedReporter == null) {
+                    sharedReporter = new AsyncSlsReporter(new AliyunSlsTransport(this.configuration), this.diagnostics);
+                    sharedReporter.start();
+                }
+                sharedReferences++;
+                this.reporter = sharedReporter;
+            }
+        } else if (this.reporter != null) {
+            this.reporter.start();
+        }
     }
 
     @Override
@@ -81,7 +100,17 @@ public final class SlsAppender extends AbstractAppender {
     @Override
     public boolean stop(final long timeout, final TimeUnit timeUnit) {
         this.setStopping();
-        if (this.reporter != null) this.reporter.stop(timeout, timeUnit);
+        if (this.shared) {
+            synchronized (SlsAppender.class) {
+                if (this.reporter != null && --sharedReferences == 0) {
+                    sharedReporter.stop(timeout, timeUnit);
+                    sharedReporter = null;
+                }
+                this.reporter = null;
+            }
+        } else if (this.reporter != null) {
+            this.reporter.stop(timeout, timeUnit);
+        }
         this.setStopped();
         return true;
     }
