@@ -27,6 +27,9 @@
 				<OnStartupTriggeringPolicy />
 			</Policies>
 		</RollingRandomAccessFile>
+
+		<!-- ERROR/FATAL events are submitted to SLS by a dedicated background thread. -->
+		<Sls name="Sls"/>
 	</Appenders>
 
 	<Loggers>
@@ -34,6 +37,7 @@
 			<AppenderRef ref="DebugFile" level="debug"/>
 			<AppenderRef ref="SysOut" level="info"/>
 			<AppenderRef ref="LatestFile" level="info"/>
+			<AppenderRef ref="Sls" level="error"/>
 		</Root>
 	</Loggers>
 </Configuration>

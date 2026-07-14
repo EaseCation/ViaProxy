@@ -24,14 +24,9 @@ import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 
-import java.util.regex.Pattern;
-
 @Plugin(name = "ip_redactor", category = PatternConverter.CATEGORY)
 @ConverterKeys({"ip_redactor"})
 public class IpRedactor extends LogEventPatternConverter {
-
-    private final Pattern IPV4_REGEX = Pattern.compile("(\\b25[0-5]|\\b2[0-4][0-9]|\\b[01]?[0-9][0-9]?)(\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}");
-    private final Pattern IPV6_REGEX = Pattern.compile("(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]+|::(ffff(:0{1,4})?:)?((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9]))");
 
     public static IpRedactor newInstance(final String[] options) {
         return new IpRedactor();
@@ -44,9 +39,7 @@ public class IpRedactor extends LogEventPatternConverter {
     @Override
     public void format(final LogEvent event, final StringBuilder toAppendTo) {
         if (ViaProxy.getConfig() != null && !ViaProxy.getConfig().shouldLogIps()) {
-            String message = toAppendTo.toString();
-            message = IPV4_REGEX.matcher(message).replaceAll("REDACTED_IP");
-            message = IPV6_REGEX.matcher(message).replaceAll("REDACTED_IP");
+            final String message = IpAddressRedactor.redact(toAppendTo.toString());
             toAppendTo.setLength(0);
             toAppendTo.append(message);
         }
