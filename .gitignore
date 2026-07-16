@@ -16,3 +16,14 @@ hs_err_pid*
 build/
 out/
 /run/
+
+# Local ViaProxy runtime state and generated service configurations
+/saves.json
+/viaaprilfools.yml
+/viabackwards.yml
+/viabedrock.yml
+/viabedrock/
+/vialegacy.yml
+/viarewind.yml
+/viaproxy.yml
+/viaversion.yml
