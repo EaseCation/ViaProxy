@@ -22,6 +22,7 @@ import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.impl.common.S2CTransferPacket;
 import net.raphimc.netminecraft.util.MinecraftServerAddress;
 import net.raphimc.viaproxy.ViaProxy;
+import net.raphimc.viaproxy.plugins.events.TransferRoutingEvent;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
 import net.raphimc.viaproxy.proxy.util.TransferDataHolder;
 import net.raphimc.viaproxy.util.logging.Logger;
@@ -39,6 +40,16 @@ public class TransferPacketHandler extends PacketHandler {
     public boolean handleP2S(Packet packet, List<ChannelFutureListener> listeners) {
         if (packet instanceof S2CTransferPacket transferPacket) {
             final InetSocketAddress newAddress = MinecraftServerAddress.ofResolved(transferPacket.host, transferPacket.port);
+            final InetSocketAddress originalTarget = InetSocketAddress.createUnresolved(transferPacket.host, transferPacket.port);
+            final TransferRoutingEvent routingEvent = new TransferRoutingEvent(this.proxyConnection, originalTarget);
+            try {
+                ViaProxy.EVENT_MANAGER.call(routingEvent);
+            } catch (Throwable throwable) {
+                Logger.LOGGER.error("A transfer routing event listener failed; reconnecting through ViaProxy", throwable);
+            }
+            if (!shouldReconnectThroughViaProxy(routingEvent.getMode())) {
+                return true;
+            }
             TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
 
             if (this.proxyConnection.getClientHandshakeAddress() != null) {
@@ -58,6 +69,10 @@ public class TransferPacketHandler extends PacketHandler {
         }
 
         return true;
+    }
+
+    static boolean shouldReconnectThroughViaProxy(final TransferRoutingMode mode) {
+        return mode != TransferRoutingMode.DIRECT_TO_TARGET;
     }
 
 }
