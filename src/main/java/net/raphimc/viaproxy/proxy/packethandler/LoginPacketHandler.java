@@ -55,6 +55,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -66,7 +67,9 @@ public class LoginPacketHandler extends PacketHandler {
     private static final ExecutorService HTTP_EXECUTOR = Executors.newWorkStealingPool(4);
 
     private final byte[] verifyToken = new byte[4];
+    private final String protocolCorrelationId = UUID.randomUUID().toString();
     private LoginState loginState = LoginState.FIRST_PACKET;
+    private int forwardedLoginProfilePackets;
 
     public LoginPacketHandler(ProxyConnection proxyConnection) {
         super(proxyConnection);
@@ -195,6 +198,11 @@ public class LoginPacketHandler extends PacketHandler {
 
             return false;
         } else if (packet instanceof S2CLoginGameProfilePacket loginGameProfilePacket) {
+            if (++this.forwardedLoginProfilePackets > 1) {
+                Logger.LOGGER.error(ProtocolBoundaryDiagnostics.describeDuplicateLoginProfile(
+                        this.protocolCorrelationId, this.proxyConnection, loginGameProfilePacket,
+                        this.forwardedLoginProfilePackets));
+            }
             final ConnectionState nextState = this.proxyConnection.getClientVersion().newerThanOrEqualTo(ProtocolVersion.v1_20_2) ? ConnectionState.CONFIGURATION : ConnectionState.PLAY;
 
             this.proxyConnection.setGameProfile(new GameProfile(loginGameProfilePacket.uuid, loginGameProfilePacket.name));
