@@ -223,6 +223,20 @@ public class ViaProxyConfig {
     @Description("Enable this if you want to see client status requests in the console and log files.")
     private boolean logClientStatusRequests = false;
 
+    @Option("protocol-boundary-diagnostics-connection-budget")
+    @Description({
+            "Limits protocol-boundary diagnostics to the first N Bedrock connections after startup; 0 disables capture, maximum 64.",
+            "Both the connection budget and packet budget must be positive before any packet summary is recorded."
+    })
+    private int protocolBoundaryDiagnosticsConnectionBudget = 0;
+
+    @Option("protocol-boundary-diagnostics-packet-budget")
+    @Description({
+            "Captures a bounded number of P2S pre-NetMinecraft and C2P final-framing packet summaries per connection.",
+            "Summaries contain protocol state, packet type/id, lengths, and at most the first 16 bytes; 0 disables capture, maximum 256."
+    })
+    private int protocolBoundaryDiagnosticsPacketBudget = 0;
+
     public static ViaProxyConfig create(final File configFile) {
         final ConfigLoader<ViaProxyConfig> configLoader = new ConfigLoader<>(ViaProxyConfig.class);
         configLoader.getConfigOptions().setResetInvalidOptions(true).setRewriteConfig(true).setCommentSpacing(1);
@@ -579,6 +593,14 @@ public class ViaProxyConfig {
     public void setLogClientStatusRequests(final boolean logClientStatusRequests) {
         this.logClientStatusRequests = logClientStatusRequests;
         this.save();
+    }
+
+    public int getProtocolBoundaryDiagnosticsPacketBudget() {
+        return Math.min(256, Math.max(0, this.protocolBoundaryDiagnosticsPacketBudget));
+    }
+
+    public int getProtocolBoundaryDiagnosticsConnectionBudget() {
+        return Math.min(64, Math.max(0, this.protocolBoundaryDiagnosticsConnectionBudget));
     }
 
     @Validator("target-version")

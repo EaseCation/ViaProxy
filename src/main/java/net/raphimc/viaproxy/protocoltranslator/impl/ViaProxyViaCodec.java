@@ -19,8 +19,13 @@ package net.raphimc.viaproxy.protocoltranslator.impl;
 
 import com.viaversion.viaversion.api.connection.UserConnection;
 import com.viaversion.viaversion.platform.ViaCodecHandler;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
+import net.raphimc.netminecraft.packet.PacketTypes;
+import net.raphimc.viabedrock.netty.PacketCodec;
+import net.raphimc.viabedrock.protocol.ClientboundBedrockPackets;
 import net.raphimc.viaproxy.ViaProxy;
+import net.raphimc.viaproxy.proxy.util.ProtocolFramingDiagnostics;
 import net.raphimc.viaproxy.util.logging.Logger;
 
 public class ViaProxyViaCodec extends ViaCodecHandler {
@@ -31,14 +36,39 @@ public class ViaProxyViaCodec extends ViaCodecHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (ViaProxy.getConfig().shouldIgnoreProtocolTranslationErrors()) {
-            try {
+        final boolean bedrockClientbound = msg instanceof ByteBuf
+                && ctx.pipeline().get(PacketCodec.NAME) != null;
+        if (bedrockClientbound) {
+            final ByteBuf payload = (ByteBuf) msg;
+            final int packetId = readPacketId(payload);
+            final ClientboundBedrockPackets packetType = ClientboundBedrockPackets.getPacket(packetId);
+            ProtocolFramingDiagnostics.beginNetworkPacket(ctx.channel(),
+                    packetType != null ? packetType.toString() : "unknown",
+                    this.connection.getProtocolInfo().getServerState().toString(),
+                    packetId, payload);
+        }
+        try {
+            if (ViaProxy.getConfig().shouldIgnoreProtocolTranslationErrors()) {
+                try {
+                    super.channelRead(ctx, msg);
+                } catch (Throwable e) {
+                    Logger.LOGGER.error("ProtocolTranslator packet translation error occurred", e);
+                }
+            } else {
                 super.channelRead(ctx, msg);
-            } catch (Throwable e) {
-                Logger.LOGGER.error("ProtocolTranslator packet translation error occurred", e);
             }
-        } else {
-            super.channelRead(ctx, msg);
+        } finally {
+            if (bedrockClientbound) {
+                ProtocolFramingDiagnostics.endNetworkPacket(ctx.channel());
+            }
+        }
+    }
+
+    private static int readPacketId(final ByteBuf payload) {
+        try {
+            return PacketTypes.readVarInt(payload.duplicate());
+        } catch (Throwable ignored) {
+            return -1;
         }
     }
 

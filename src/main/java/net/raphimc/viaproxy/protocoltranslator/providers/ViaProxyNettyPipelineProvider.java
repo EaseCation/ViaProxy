@@ -18,20 +18,62 @@
 package net.raphimc.viaproxy.protocoltranslator.providers;
 
 import com.viaversion.viaversion.api.connection.UserConnection;
+import com.viaversion.viaversion.api.protocol.packet.PacketType;
+import com.viaversion.viaversion.api.protocol.packet.State;
 import io.netty.channel.Channel;
 import net.lenni0451.commons.unchecked.Sneaky;
+import net.raphimc.netminecraft.constants.ConnectionState;
 import net.raphimc.netminecraft.constants.MCPipeline;
+import net.raphimc.netminecraft.packet.registry.PacketRegistry;
 import net.raphimc.viabedrock.netty.CompressionCodec;
 import net.raphimc.viabedrock.netty.raknet.AesEncryptionCodec;
 import net.raphimc.viabedrock.netty.raknet.MessageCodec;
 import net.raphimc.viabedrock.protocol.data.enums.bedrock.generated.PacketCompressionAlgorithm;
 import net.raphimc.viabedrock.protocol.provider.NettyPipelineProvider;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
+import net.raphimc.viaproxy.proxy.util.ProtocolFramingDiagnostics;
 import org.cloudburstmc.netty.handler.codec.raknet.common.RakSessionCodec;
 
 import javax.crypto.SecretKey;
 
 public class ViaProxyNettyPipelineProvider extends NettyPipelineProvider {
+
+    @Override
+    public void beginJavaClientboundPacket(final UserConnection user, final String origin,
+                                           final PacketType packetType) {
+        ProtocolFramingDiagnostics.beginSyntheticPacket(user.getChannel(), origin, packetType);
+    }
+
+    @Override
+    public void endJavaClientboundPacket(final UserConnection user) {
+        ProtocolFramingDiagnostics.endSyntheticPacket(user.getChannel());
+    }
+
+    @Override
+    public boolean isJavaClientboundStateReady(final UserConnection user, final State state) {
+        if (!super.isJavaClientboundStateReady(user, state)) {
+            return false;
+        }
+
+        final ConnectionState expectedState = switch (state) {
+            case CONFIGURATION -> ConnectionState.CONFIGURATION;
+            case PLAY -> ConnectionState.PLAY;
+            default -> null;
+        };
+        if (expectedState == null) {
+            return false;
+        }
+
+        final ProxyConnection proxyConnection = ProxyConnection.fromUserConnection(user);
+        final PacketRegistry p2sRegistry = user.getChannel()
+                .attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get();
+        final PacketRegistry c2pRegistry = proxyConnection.getC2P()
+                .attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).get();
+        return proxyConnection.getP2sConnectionState() == expectedState
+                && proxyConnection.getC2pConnectionState() == expectedState
+                && p2sRegistry != null && p2sRegistry.getConnectionState() == expectedState
+                && c2pRegistry != null && c2pRegistry.getConnectionState() == expectedState;
+    }
 
     @Override
     public int getServerTransportLatencyMillis(final UserConnection user) {

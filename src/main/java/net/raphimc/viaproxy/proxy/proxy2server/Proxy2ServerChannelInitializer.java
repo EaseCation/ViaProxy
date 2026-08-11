@@ -42,6 +42,7 @@ import net.raphimc.viaproxy.plugins.events.Proxy2ServerChannelInitializeEvent;
 import net.raphimc.viaproxy.plugins.events.types.ITyped;
 import net.raphimc.viaproxy.protocoltranslator.impl.ViaProxyViaCodec;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
+import net.raphimc.viaproxy.proxy.util.ProtocolFramingDiagnostics;
 import net.raphimc.viaproxy.util.NetherNetInetSocketAddress;
 
 import java.net.InetSocketAddress;
@@ -101,6 +102,11 @@ public class Proxy2ServerChannelInitializer extends MinecraftChannelInitializer 
                     throw new UnsupportedOperationException("Unsupported address type for Bedrock status: " + proxyConnection.getServerAddress().getClass().getName());
                 }
             }
+        }
+
+        if (proxyConnection.getServerVersion().equals(BedrockProtocolVersion.bedrockLatest)
+                && proxyConnection.getC2pConnectionState() != ConnectionState.STATUS) {
+            ProtocolFramingDiagnostics.install(proxyConnection, channel);
         }
 
         if (ViaProxy.EVENT_MANAGER.call(new Proxy2ServerChannelInitializeEvent(ITyped.Type.POST, channel, false)).isCancelled()) {

@@ -27,6 +27,7 @@ import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.proxy.packethandler.PacketHandler;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
 import net.raphimc.viaproxy.proxy.util.ExceptionUtil;
+import net.raphimc.viaproxy.proxy.util.ProtocolFramingDiagnostics;
 import net.raphimc.viaproxy.util.logging.Logger;
 
 import java.util.List;
@@ -65,6 +66,7 @@ public class Proxy2ServerHandler extends SimpleChannelInboundHandler<Packet> {
                 return;
             }
         }
+        ProtocolFramingDiagnostics.linkCurrentP2sPacket(this.proxyConnection, packet);
         this.proxyConnection.getC2P().writeAndFlush(packet).addListeners(listeners.toArray(new ChannelFutureListener[0]));
     }
 
