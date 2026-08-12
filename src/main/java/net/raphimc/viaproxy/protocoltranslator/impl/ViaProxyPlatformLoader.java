@@ -23,6 +23,7 @@ import com.viaversion.viaversion.api.platform.ViaPlatformLoader;
 import com.viaversion.viaversion.api.protocol.version.VersionProvider;
 import com.viaversion.viaversion.protocols.v1_8to1_9.provider.CompressionProvider;
 import net.raphimc.viabedrock.protocol.provider.ClientAddressProvider;
+import net.raphimc.viabedrock.protocol.provider.JavaClientEncryptionKeyProvider;
 import net.raphimc.viabedrock.protocol.provider.NettyPipelineProvider;
 import net.raphimc.vialegacy.protocol.classic.c0_28_30toa1_0_15.provider.ClassicCustomCommandProvider;
 import net.raphimc.vialegacy.protocol.classic.c0_28_30toa1_0_15.provider.ClassicMPPassProvider;
@@ -56,6 +57,7 @@ public class ViaProxyPlatformLoader implements ViaPlatformLoader {
         // ViaBedrock
         Via.getManager().getProviders().use(NettyPipelineProvider.class, new ViaProxyNettyPipelineProvider());
         Via.getManager().getProviders().use(ClientAddressProvider.class, new ViaProxyClientAddressProvider());
+        Via.getManager().getProviders().use(JavaClientEncryptionKeyProvider.class, new ViaProxyJavaClientEncryptionKeyProvider());
 
         // ViaProxy plugins
         ViaProxy.EVENT_MANAGER.call(new ViaLoadingEvent());

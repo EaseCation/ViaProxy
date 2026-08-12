@@ -42,7 +42,9 @@ import net.raphimc.viaproxy.cli.ConsoleFormatter;
 import net.raphimc.viaproxy.proxy.packethandler.PacketHandler;
 import net.raphimc.viaproxy.proxy.util.CloseAndReturn;
 import net.raphimc.viaproxy.util.logging.Logger;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.crypto.SecretKey;
 import java.net.SocketAddress;
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -65,6 +67,7 @@ public class ProxyConnection extends NetClient {
     private GameProfile gameProfile;
     private C2SLoginHelloPacket loginHelloPacket;
     private Key storedSecretKey;
+    private SecretKey javaClientEncryptionKey;
 
     private UserConnection userConnection;
     private UserOptions userOptions;
@@ -168,6 +171,14 @@ public class ProxyConnection extends NetClient {
 
     public void enablePreNettyEncryption() throws GeneralSecurityException {
         this.getChannel().attr(MCPipeline.ENCRYPTION_ATTRIBUTE_KEY).set(new AESEncryption(this.storedSecretKey));
+    }
+
+    public @Nullable SecretKey getJavaClientEncryptionKey() {
+        return this.javaClientEncryptionKey;
+    }
+
+    public void setJavaClientEncryptionKey(final SecretKey javaClientEncryptionKey) {
+        this.javaClientEncryptionKey = javaClientEncryptionKey;
     }
 
     public UserConnection getUserConnection() {

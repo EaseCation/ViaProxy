@@ -121,6 +121,7 @@ public class LoginPacketHandler extends PacketHandler {
             }
 
             final SecretKey secretKey = CryptUtil.decryptSecretKey(KEY_PAIR.getPrivate(), loginKeyPacket.encryptedSecretKey);
+            this.proxyConnection.setJavaClientEncryptionKey(secretKey);
             this.proxyConnection.getC2P().attr(MCPipeline.ENCRYPTION_ATTRIBUTE_KEY).set(new AESEncryption(secretKey));
 
             final String userName = this.proxyConnection.getGameProfile().getName();
