@@ -175,6 +175,17 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             if (clientVersion.olderThan(ProtocolVersion.v1_20_5)) {
                 packet.intendedState = IntendedState.TRANSFER;
             }
+        } else if (ViaProxy.getConfig().isLoginRoutingEnabled()) {
+            final String loginBackend = LoginRoutingUtil.getLoginBackendAddress(handshakeParts[0], ViaProxy.getConfig().getLoginRoutingJetestAddress(), ViaProxy.getConfig().getLoginRoutingJeprodAddress());
+            if (loginBackend != null) {
+                if (loginBackend.isBlank()) {
+                    Logger.LOGGER.warn("login-routing: handshake host '" + handshakeParts[0] + "' matched, but no login backend is configured; falling back to default target " + serverAddress);
+                } else {
+                    serverAddress = AddressUtil.parse(loginBackend, serverVersion);
+                }
+                serverVersion = ViaProxy.getConfig().getTargetVersion();
+                Logger.u_info("login-routing", this.proxyConnection, "Routing login reconnect '" + handshakeParts[0] + "' to " + serverAddress);
+            }
         }
 
         HostAndPort clientHandshakeAddress;

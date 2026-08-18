@@ -25,6 +25,7 @@ import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.plugins.events.TransferRoutingEvent;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
 import net.raphimc.viaproxy.proxy.util.TransferDataHolder;
+import net.raphimc.viaproxy.util.LoginRoutingUtil;
 import net.raphimc.viaproxy.util.logging.Logger;
 
 import java.net.InetSocketAddress;
@@ -50,6 +51,15 @@ public class TransferPacketHandler extends PacketHandler {
             if (!shouldReconnectThroughViaProxy(routingEvent.getMode())) {
                 return true;
             }
+
+            final String loginReconnectHost = ViaProxy.getConfig().isLoginRoutingEnabled() ? LoginRoutingUtil.getLoginReconnectHost(originalTarget) : null;
+            if (loginReconnectHost != null && this.proxyConnection.getClientHandshakeAddress() != null) {
+                transferPacket.host = loginReconnectHost;
+                transferPacket.port = this.proxyConnection.getClientHandshakeAddress().getPort();
+                Logger.u_info("transfer", this.proxyConnection, "Rewriting login transfer target " + originalTarget + " to " + loginReconnectHost + ":" + transferPacket.port);
+                return true;
+            }
+
             TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
 
             if (this.proxyConnection.getClientHandshakeAddress() != null) {

@@ -169,6 +169,18 @@ public class ViaProxyConfig {
     })
     private boolean rewriteTransferPackets = true;
 
+    @Option("login-routing-enabled")
+    @Description("Enabling this will route reconnects to the EaseCation login hostnames (jetest-login.easecation.net / jeprod-login.easecation.net) directly to the configured login server backends instead of the default target.")
+    private boolean loginRoutingEnabled = true;
+
+    @Option("login-routing-jetest-address")
+    @Description("The backend address reconnects to jetest-login.easecation.net are routed to.")
+    private String loginRoutingJetestAddress = "10.42.0.1:19133";
+
+    @Option("login-routing-jeprod-address")
+    @Description("The backend address reconnects to jeprod-login.easecation.net are routed to. Leave empty to fall back to the default target address.")
+    private String loginRoutingJeprodAddress = "loginproxy-headless.easecation.svc.cluster.local:19132";
+
     @Option("custom-motd")
     @Description("Custom MOTD to send when clients ping the proxy. Leave empty to use the target server's MOTD.")
     private String customMotd = "";
@@ -503,6 +515,18 @@ public class ViaProxyConfig {
     public void setRewriteTransferPackets(final boolean rewriteTransferPackets) {
         this.rewriteTransferPackets = rewriteTransferPackets;
         this.save();
+    }
+
+    public boolean isLoginRoutingEnabled() {
+        return this.loginRoutingEnabled;
+    }
+
+    public String getLoginRoutingJetestAddress() {
+        return this.loginRoutingJetestAddress;
+    }
+
+    public String getLoginRoutingJeprodAddress() {
+        return this.loginRoutingJeprodAddress;
     }
 
     public String getCustomMotd() {
