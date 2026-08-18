@@ -76,12 +76,11 @@ repositories {
         }
     }
     maven {
-        name = "Lenni0451"
-        url = "https://maven.lenni0451.net/everything"
+        name = "NetMinecraft"
+        url = "https://repo.loohpjames.com/repository"
 
         content {
-            includeGroupByRegex "net\\.lenni0451(\\..+)?"
-            includeGroupByRegex "net\\.raphimc(\\..+)?"
+            includeGroup "net.raphimc.netminecraft"
         }
     }
     maven {
@@ -164,7 +163,7 @@ dependencies {
     includeInJar("io.netty:netty-codec-socks:4.2.12.Final") {
         transitive = false
     }
-    includeInJar("net.raphimc:MinecraftAuth:5.0.1-20260217.194827-4") {
+    includeInJar("net.raphimc:MinecraftAuth:5.0.2") {
         exclude group: "com.google.code.gson", module: "gson"
     }
     includeInJar("dev.kastle.netty:netty-transport-raknet:1.7.0") {
