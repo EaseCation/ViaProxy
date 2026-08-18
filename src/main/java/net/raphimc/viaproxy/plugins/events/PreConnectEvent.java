@@ -33,16 +33,24 @@ public class PreConnectEvent extends EventCancellable {
     private final HostAndPort clientHandshakeAddress;
     private final IntendedState intendedState;
     private final Channel clientChannel;
+    private final String transferCookieKey;
+    private final byte[] transferCookiePayload;
 
     private String cancelMessage = "§cCould not connect to the backend server! (Server is blacklisted)";
 
     public PreConnectEvent(final SocketAddress serverAddress, final ProtocolVersion serverVersion, final ProtocolVersion clientVersion, final HostAndPort clientHandshakeAddress, final IntendedState intendedState, final Channel clientChannel) {
+        this(serverAddress, serverVersion, clientVersion, clientHandshakeAddress, intendedState, clientChannel, null, null);
+    }
+
+    public PreConnectEvent(final SocketAddress serverAddress, final ProtocolVersion serverVersion, final ProtocolVersion clientVersion, final HostAndPort clientHandshakeAddress, final IntendedState intendedState, final Channel clientChannel, final String transferCookieKey, final byte[] transferCookiePayload) {
         this.serverAddress = serverAddress;
         this.serverVersion = serverVersion;
         this.clientVersion = clientVersion;
         this.clientHandshakeAddress = clientHandshakeAddress;
         this.intendedState = intendedState;
         this.clientChannel = clientChannel;
+        this.transferCookieKey = transferCookieKey;
+        this.transferCookiePayload = transferCookiePayload != null ? transferCookiePayload.clone() : null;
     }
 
     public SocketAddress getServerAddress() {
@@ -75,6 +83,11 @@ public class PreConnectEvent extends EventCancellable {
 
     public Channel getClientChannel() {
         return this.clientChannel;
+    }
+
+    public byte[] getTransferCookie(final String key) {
+        if (key == null || !key.equals(this.transferCookieKey) || this.transferCookiePayload == null) return null;
+        return this.transferCookiePayload.clone();
     }
 
     public String getCancelMessage() {

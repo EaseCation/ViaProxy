@@ -25,9 +25,13 @@ import java.util.Objects;
 
 public final class TransferRoutingEvent {
 
+    private static final int MAX_COOKIE_PAYLOAD_SIZE = 5_120;
+
     private final ProxyConnection proxyConnection;
     private final InetSocketAddress originalTarget;
     private TransferRoutingMode mode = TransferRoutingMode.RECONNECT_THROUGH_VIAPROXY;
+    private String reconnectCookieKey;
+    private byte[] reconnectCookiePayload;
 
     public TransferRoutingEvent(final ProxyConnection proxyConnection, final InetSocketAddress originalTarget) {
         this.proxyConnection = proxyConnection;
@@ -48,5 +52,21 @@ public final class TransferRoutingEvent {
 
     public void setMode(final TransferRoutingMode mode) {
         this.mode = Objects.requireNonNull(mode, "mode");
+    }
+
+    public String getReconnectCookieKey() {
+        return this.reconnectCookieKey;
+    }
+
+    public byte[] getReconnectCookiePayload() {
+        return this.reconnectCookiePayload != null ? this.reconnectCookiePayload.clone() : null;
+    }
+
+    public void setReconnectCookie(final String key, final byte[] payload) {
+        if (key == null || key.isBlank()) throw new IllegalArgumentException("Cookie key must not be blank");
+        if (payload == null) throw new IllegalArgumentException("Cookie payload must not be null");
+        if (payload.length > MAX_COOKIE_PAYLOAD_SIZE) throw new IllegalArgumentException("Cookie payload is too large");
+        this.reconnectCookieKey = key;
+        this.reconnectCookiePayload = payload.clone();
     }
 }
