@@ -35,10 +35,10 @@ import net.raphimc.netminecraft.packet.impl.login.C2SLoginHelloPacket;
 import net.raphimc.netminecraft.packet.impl.login.S2CLoginDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.play.S2CPlayDisconnectPacket;
 import net.raphimc.netminecraft.packet.impl.status.S2CStatusResponsePacket;
+import net.raphimc.netminecraft.packet.registry.DefaultPacketRegistry;
 import net.raphimc.netminecraft.util.TransportType;
 import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.cli.ConsoleFormatter;
-import net.raphimc.viaproxy.proxy.packet.ViaProxyPacketRegistry;
 import net.raphimc.viaproxy.proxy.packethandler.PacketHandler;
 import net.raphimc.viaproxy.proxy.util.CloseAndReturn;
 import net.raphimc.viaproxy.util.logging.Logger;
@@ -138,7 +138,7 @@ public class ProxyConnection extends NetClient {
 
     public void setClientVersion(final ProtocolVersion clientVersion) {
         this.clientVersion = clientVersion;
-        this.c2p.attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).set(new ViaProxyPacketRegistry(false, clientVersion.getVersion()));
+        this.c2p.attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).set(new DefaultPacketRegistry(false, clientVersion.getVersion()));
     }
 
     public HostAndPort getClientHandshakeAddress() {
