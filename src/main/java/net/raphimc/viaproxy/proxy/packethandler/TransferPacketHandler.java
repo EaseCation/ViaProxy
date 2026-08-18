@@ -23,6 +23,7 @@ import net.raphimc.netminecraft.packet.impl.common.S2CTransferPacket;
 import net.raphimc.netminecraft.util.MinecraftServerAddress;
 import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.plugins.events.TransferRoutingEvent;
+import net.raphimc.viaproxy.proxy.packet.S2CPlayStoreCookiePacket;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
 import net.raphimc.viaproxy.proxy.util.TransferDataHolder;
 import net.raphimc.viaproxy.util.logging.Logger;
@@ -49,6 +50,12 @@ public class TransferPacketHandler extends PacketHandler {
             }
             if (!shouldReconnectThroughViaProxy(routingEvent.getMode())) {
                 return true;
+            }
+            if (routingEvent.getReconnectCookieKey() != null) {
+                this.proxyConnection.getC2P().writeAndFlush(new S2CPlayStoreCookiePacket(
+                        routingEvent.getReconnectCookieKey(),
+                        routingEvent.getReconnectCookiePayload()
+                )).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
             }
             TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
 

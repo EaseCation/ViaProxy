@@ -26,7 +26,6 @@ import net.raphimc.netminecraft.constants.ConnectionState;
 import net.raphimc.netminecraft.constants.MCPipeline;
 import net.raphimc.netminecraft.netty.codec.NoReadFlowControlHandler;
 import net.raphimc.netminecraft.netty.connection.MinecraftChannelInitializer;
-import net.raphimc.netminecraft.packet.registry.DefaultPacketRegistry;
 import net.raphimc.viabedrock.api.BedrockProtocolVersion;
 import net.raphimc.viabedrock.netty.BatchLengthCodec;
 import net.raphimc.viabedrock.netty.DisconnectHandler;
@@ -41,6 +40,7 @@ import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.plugins.events.Proxy2ServerChannelInitializeEvent;
 import net.raphimc.viaproxy.plugins.events.types.ITyped;
 import net.raphimc.viaproxy.protocoltranslator.impl.ViaProxyViaCodec;
+import net.raphimc.viaproxy.proxy.packet.ViaProxyPacketRegistry;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
 import net.raphimc.viaproxy.proxy.util.ProtocolFramingDiagnostics;
 import net.raphimc.viaproxy.util.NetherNetInetSocketAddress;
@@ -74,7 +74,7 @@ public class Proxy2ServerChannelInitializer extends MinecraftChannelInitializer 
         }
 
         super.initChannel(channel);
-        channel.attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).set(new DefaultPacketRegistry(true, proxyConnection.getClientVersion().getVersion()));
+        channel.attr(MCPipeline.PACKET_REGISTRY_ATTRIBUTE_KEY).set(new ViaProxyPacketRegistry(true, proxyConnection.getClientVersion().getVersion()));
 
         final UserConnection user = ViaChannelInitializer.createUserConnection(channel, true);
         proxyConnection.setUserConnection(user);

@@ -32,6 +32,8 @@ import net.raphimc.netminecraft.constants.ConnectionState;
 import net.raphimc.netminecraft.constants.IntendedState;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.impl.handshaking.C2SHandshakingClientIntentionPacket;
+import net.raphimc.netminecraft.packet.impl.login.C2SLoginCookieResponsePacket;
+import net.raphimc.netminecraft.packet.impl.login.S2CLoginCookieRequestPacket;
 import net.raphimc.viabedrock.api.BedrockProtocolVersion;
 import net.raphimc.vialegacy.api.LegacyProtocolVersion;
 import net.raphimc.viaproxy.ViaProxy;
@@ -39,6 +41,7 @@ import net.raphimc.viaproxy.plugins.events.ConnectEvent;
 import net.raphimc.viaproxy.plugins.events.PreConnectEvent;
 import net.raphimc.viaproxy.plugins.events.Proxy2ServerHandlerCreationEvent;
 import net.raphimc.viaproxy.plugins.events.ProxySessionCreationEvent;
+import net.raphimc.viaproxy.plugins.events.TransferCookieRequestEvent;
 import net.raphimc.viaproxy.protocoltranslator.ProtocolTranslator;
 import net.raphimc.viaproxy.protocoltranslator.viaproxy.ViaProxyConfig;
 import net.raphimc.viaproxy.proxy.packethandler.*;
@@ -58,13 +61,23 @@ import java.net.InetSocketAddress;
 import java.net.PortUnreachableException;
 import java.net.SocketAddress;
 import java.nio.channels.UnresolvedAddressException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
 
+    private static final int MAX_DEFERRED_CLIENT_PACKETS = 16;
+    private static final int TRANSFER_COOKIE_TIMEOUT_SECONDS = 3;
+
     private ProxyConnection proxyConnection;
+    private PendingTransferCookieHandshake pendingTransferCookieHandshake;
+    private ScheduledFuture<?> transferCookieTimeout;
+    private final List<Packet> deferredClientPackets = new ArrayList<>();
+    private boolean deferClientPackets;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -77,6 +90,7 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
+        this.cancelTransferCookieTimeout();
         if (this.proxyConnection instanceof DummyProxyConnection) return;
 
         try {
@@ -95,6 +109,19 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             return;
         }
 
+        if (this.pendingTransferCookieHandshake != null) {
+            this.handlePendingTransferCookiePacket(packet);
+            return;
+        }
+        if (this.deferClientPackets) {
+            this.deferClientPacket(packet);
+            return;
+        }
+
+        this.forwardClientPacket(packet);
+    }
+
+    private void forwardClientPacket(final Packet packet) throws Exception {
         final List<ChannelFutureListener> listeners = Lists.newArrayList(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
         for (PacketHandler packetHandler : this.proxyConnection.getPacketHandlers()) {
             if (!packetHandler.handleC2P(packet, listeners)) {
@@ -107,6 +134,37 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionUtil.handleNettyException(ctx, cause, this.proxyConnection, true);
+    }
+
+    private void handlePendingTransferCookiePacket(final Packet packet) {
+        if (!(packet instanceof C2SLoginCookieResponsePacket cookieResponse)) {
+            this.deferClientPacket(packet);
+            return;
+        }
+
+        final PendingTransferCookieHandshake pending = this.pendingTransferCookieHandshake;
+        if (!pending.cookieKey().equals(cookieResponse.key)) {
+            throw new IllegalStateException("Received an unexpected transfer cookie response");
+        }
+
+        this.pendingTransferCookieHandshake = null;
+        this.cancelTransferCookieTimeout();
+        this.deferClientPackets = true;
+        this.finishHandshake(pending, pending.cookieKey(), cookieResponse.payload);
+    }
+
+    private void deferClientPacket(final Packet packet) {
+        if (this.deferredClientPackets.size() >= MAX_DEFERRED_CLIENT_PACKETS) {
+            throw new IllegalStateException("Too many client packets arrived before transfer routing completed");
+        }
+        this.deferredClientPackets.add(packet);
+    }
+
+    private void cancelTransferCookieTimeout() {
+        if (this.transferCookieTimeout != null) {
+            this.transferCookieTimeout.cancel(false);
+            this.transferCookieTimeout = null;
+        }
     }
 
     private void handleHandshake(final C2SHandshakingClientIntentionPacket packet) {
@@ -184,15 +242,50 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             clientHandshakeAddress = null;
         }
 
-        final PreConnectEvent preConnectEvent = new PreConnectEvent(serverAddress, serverVersion, clientVersion, clientHandshakeAddress, packet.intendedState, this.proxyConnection.getC2P());
+        final PendingTransferCookieHandshake handshake = new PendingTransferCookieHandshake(
+                serverAddress,
+                serverVersion,
+                clientVersion,
+                clientHandshakeAddress,
+                packet.intendedState,
+                classicMpPass,
+                handshakeParts
+        );
+        if (packet.intendedState == IntendedState.TRANSFER && clientVersion.newerThanOrEqualTo(ProtocolVersion.v1_20_5)) {
+            final TransferCookieRequestEvent cookieRequestEvent = ViaProxy.EVENT_MANAGER.call(new TransferCookieRequestEvent(clientVersion, clientHandshakeAddress, this.proxyConnection.getC2P()));
+            if (cookieRequestEvent.getCookieKey() != null) {
+                this.pendingTransferCookieHandshake = handshake.withCookieKey(cookieRequestEvent.getCookieKey());
+                this.transferCookieTimeout = this.proxyConnection.getC2P().eventLoop().schedule(() -> {
+                    if (this.pendingTransferCookieHandshake == null) return;
+                    this.pendingTransferCookieHandshake = null;
+                    this.deferredClientPackets.clear();
+                    this.proxyConnection.kickClient("§cTransfer routing timed out. Please reconnect.");
+                }, TRANSFER_COOKIE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                this.proxyConnection.getC2P().writeAndFlush(new S2CLoginCookieRequestPacket(cookieRequestEvent.getCookieKey())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+                return;
+            }
+        }
+
+        this.finishHandshake(handshake, null, null);
+    }
+
+    private void finishHandshake(final PendingTransferCookieHandshake handshake, final String transferCookieKey, final byte[] transferCookiePayload) {
+        SocketAddress serverAddress = handshake.serverAddress();
+        ProtocolVersion serverVersion = handshake.serverVersion();
+        final ProtocolVersion clientVersion = handshake.clientVersion();
+        final HostAndPort clientHandshakeAddress = handshake.clientHandshakeAddress();
+        final IntendedState intendedState = handshake.intendedState();
+        final String[] handshakeParts = handshake.handshakeParts();
+
+        final PreConnectEvent preConnectEvent = new PreConnectEvent(serverAddress, serverVersion, clientVersion, clientHandshakeAddress, intendedState, this.proxyConnection.getC2P(), transferCookieKey, transferCookiePayload);
         if (ViaProxy.EVENT_MANAGER.call(preConnectEvent).isCancelled()) {
             this.proxyConnection.kickClient(preConnectEvent.getCancelMessage());
         }
         serverAddress = preConnectEvent.getServerAddress();
         serverVersion = preConnectEvent.getServerVersion();
 
-        final boolean isJavaBetaPing = packet.intendedState.getConnectionState() == ConnectionState.STATUS && serverVersion.olderThanOrEqualTo(LegacyProtocolVersion.b1_7tob1_7_3) && !ViaProxy.getConfig().shouldAllowBetaPinging();
-        final boolean isBedrockNetherNetPing = packet.intendedState.getConnectionState() == ConnectionState.STATUS && serverVersion.equals(BedrockProtocolVersion.bedrockLatest) && serverAddress instanceof NetherNetAddress;
+        final boolean isJavaBetaPing = intendedState.getConnectionState() == ConnectionState.STATUS && serverVersion.olderThanOrEqualTo(LegacyProtocolVersion.b1_7tob1_7_3) && !ViaProxy.getConfig().shouldAllowBetaPinging();
+        final boolean isBedrockNetherNetPing = intendedState.getConnectionState() == ConnectionState.STATUS && serverVersion.equals(BedrockProtocolVersion.bedrockLatest) && serverAddress instanceof NetherNetAddress;
         if (isJavaBetaPing || isBedrockNetherNetPing) {
             if (!ViaProxy.getConfig().getCustomMotd().isBlank()) {
                 this.proxyConnection.kickClient(ViaProxy.getConfig().getCustomMotd());
@@ -200,15 +293,16 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
             this.proxyConnection.kickClient("§7ViaProxy is working!\n§7Connect to join the configured server");
         }
 
-        final UserOptions userOptions = new UserOptions(classicMpPass, ViaProxy.getConfig().getAccount());
+        final UserOptions userOptions = new UserOptions(handshake.classicMpPass(), ViaProxy.getConfig().getAccount());
         ChannelUtil.disableAutoRead(this.proxyConnection.getC2P());
 
-        if (packet.intendedState.getConnectionState() == ConnectionState.LOGIN && serverVersion.equals(ProtocolTranslator.AUTO_DETECT_PROTOCOL)) {
+        final boolean replayDeferredClientPackets = transferCookieKey != null;
+        if (intendedState.getConnectionState() == ConnectionState.LOGIN && serverVersion.equals(ProtocolTranslator.AUTO_DETECT_PROTOCOL)) {
             SocketAddress finalServerAddress = serverAddress;
             HostAndPort finalClientHandshakeAddress = clientHandshakeAddress;
             CompletableFuture.runAsync(() -> {
                 final ProtocolVersion detectedVersion = ProtocolVersionDetector.get(finalServerAddress, clientVersion);
-                this.connect(finalServerAddress, detectedVersion, clientVersion, packet.intendedState, finalClientHandshakeAddress, userOptions, handshakeParts);
+                this.connect(finalServerAddress, detectedVersion, clientVersion, intendedState, finalClientHandshakeAddress, userOptions, handshakeParts, replayDeferredClientPackets);
             }).exceptionally(t -> {
                 if (t instanceof ConnectException || t instanceof UnresolvedAddressException || t instanceof PortUnreachableException) {
                     this.proxyConnection.kickClient("§cCould not connect to the backend server!");
@@ -218,11 +312,11 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
                 return null;
             });
         } else {
-            this.connect(serverAddress, serverVersion, clientVersion, packet.intendedState, clientHandshakeAddress, userOptions, handshakeParts);
+            this.connect(serverAddress, serverVersion, clientVersion, intendedState, clientHandshakeAddress, userOptions, handshakeParts, replayDeferredClientPackets);
         }
     }
 
-    private void connect(final SocketAddress serverAddress, final ProtocolVersion serverVersion, final ProtocolVersion clientVersion, final IntendedState intendedState, final HostAndPort clientHandshakeAddress, final UserOptions userOptions, final String[] handshakeParts) {
+    private void connect(final SocketAddress serverAddress, final ProtocolVersion serverVersion, final ProtocolVersion clientVersion, final IntendedState intendedState, final HostAndPort clientHandshakeAddress, final UserOptions userOptions, final String[] handshakeParts, final boolean replayDeferredClientPackets) {
         final Supplier<ChannelHandler> handlerSupplier = () -> ViaProxy.EVENT_MANAGER.call(new Proxy2ServerHandlerCreationEvent(new Proxy2ServerHandler(), false)).getHandler();
         final ProxyConnection proxyConnection;
         if (serverVersion.equals(BedrockProtocolVersion.bedrockLatest)) {
@@ -302,7 +396,11 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
                                 userConnection.get(CookieStorage.class).cookies().putAll(TransferDataHolder.removeCookieStorage(this.proxyConnection.getC2P()).cookies());
                             }
                             this.proxyConnection.setP2sConnectionState(intendedState.getConnectionState());
-                            ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
+                            if (replayDeferredClientPackets) {
+                                this.proxyConnection.getC2P().eventLoop().execute(this::replayDeferredClientPackets);
+                            } else {
+                                ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
+                            }
                         }
                     });
                 });
@@ -317,6 +415,39 @@ public class Client2ProxyHandler extends SimpleChannelInboundHandler<Packet> {
                 }
             }
         });
+    }
+
+    private void replayDeferredClientPackets() {
+        try {
+            for (Packet packet : this.deferredClientPackets) {
+                this.forwardClientPacket(packet);
+            }
+            this.deferredClientPackets.clear();
+            this.deferClientPackets = false;
+            ChannelUtil.restoreAutoRead(this.proxyConnection.getC2P());
+        } catch (Throwable throwable) {
+            this.proxyConnection.getC2P().pipeline().fireExceptionCaught(throwable);
+        }
+    }
+
+    private record PendingTransferCookieHandshake(
+            SocketAddress serverAddress,
+            ProtocolVersion serverVersion,
+            ProtocolVersion clientVersion,
+            HostAndPort clientHandshakeAddress,
+            IntendedState intendedState,
+            String classicMpPass,
+            String[] handshakeParts,
+            String cookieKey
+    ) {
+
+        private PendingTransferCookieHandshake(final SocketAddress serverAddress, final ProtocolVersion serverVersion, final ProtocolVersion clientVersion, final HostAndPort clientHandshakeAddress, final IntendedState intendedState, final String classicMpPass, final String[] handshakeParts) {
+            this(serverAddress, serverVersion, clientVersion, clientHandshakeAddress, intendedState, classicMpPass, handshakeParts, null);
+        }
+
+        private PendingTransferCookieHandshake withCookieKey(final String cookieKey) {
+            return new PendingTransferCookieHandshake(this.serverAddress, this.serverVersion, this.clientVersion, this.clientHandshakeAddress, this.intendedState, this.classicMpPass, this.handshakeParts, cookieKey);
+        }
     }
 
 }
