@@ -17,14 +17,10 @@
  */
 package net.raphimc.viaproxy.proxy.packethandler;
 
-import com.viaversion.viaversion.api.protocol.packet.PacketWrapper;
-import com.viaversion.viaversion.api.type.Types;
-import com.viaversion.viaversion.protocols.v1_21_11to26_1.packet.ClientboundPackets26_1;
 import io.netty.channel.ChannelFutureListener;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.impl.common.S2CTransferPacket;
 import net.raphimc.netminecraft.util.MinecraftServerAddress;
-import net.raphimc.viabedrock.protocol.BedrockProtocol;
 import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.plugins.events.TransferRoutingEvent;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
@@ -41,7 +37,7 @@ public class TransferPacketHandler extends PacketHandler {
     }
 
     @Override
-    public boolean handleP2S(Packet packet, List<ChannelFutureListener> listeners) throws Exception {
+    public boolean handleP2S(Packet packet, List<ChannelFutureListener> listeners) {
         if (packet instanceof S2CTransferPacket transferPacket) {
             final InetSocketAddress newAddress = MinecraftServerAddress.ofResolved(transferPacket.host, transferPacket.port);
             final InetSocketAddress originalTarget = InetSocketAddress.createUnresolved(transferPacket.host, transferPacket.port);
@@ -53,12 +49,6 @@ public class TransferPacketHandler extends PacketHandler {
             }
             if (!shouldReconnectThroughViaProxy(routingEvent.getMode())) {
                 return true;
-            }
-            if (routingEvent.getReconnectCookieKey() != null) {
-                final PacketWrapper storeCookie = PacketWrapper.create(ClientboundPackets26_1.STORE_COOKIE, this.proxyConnection.getUserConnection());
-                storeCookie.write(Types.STRING, routingEvent.getReconnectCookieKey());
-                storeCookie.write(Types.BYTE_ARRAY_PRIMITIVE, routingEvent.getReconnectCookiePayload());
-                storeCookie.send(BedrockProtocol.class);
             }
             TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
 
