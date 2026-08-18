@@ -17,6 +17,7 @@
  */
 package net.raphimc.viaproxy.proxy.packethandler;
 
+import com.google.common.net.HostAndPort;
 import io.netty.channel.ChannelFutureListener;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.impl.common.S2CTransferPacket;
@@ -63,8 +64,12 @@ public class TransferPacketHandler extends PacketHandler {
             TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
 
             if (this.proxyConnection.getClientHandshakeAddress() != null) {
-                transferPacket.host = this.proxyConnection.getClientHandshakeAddress().getHost();
+                final String transferHost = getTransferTargetHost(this.proxyConnection.getClientHandshakeAddress(), ViaProxy.getConfig().isLoginRoutingEnabled());
+                transferPacket.host = transferHost;
                 transferPacket.port = this.proxyConnection.getClientHandshakeAddress().getPort();
+                if (!transferHost.equals(this.proxyConnection.getClientHandshakeAddress().getHost())) {
+                    Logger.u_info("transfer", this.proxyConnection, "Rewriting login return transfer target " + originalTarget + " to " + transferHost + ":" + transferPacket.port);
+                }
             } else {
                 Logger.u_warn("transfer", this.proxyConnection, "Client handshake address is invalid, using ViaProxy bind address instead");
                 if (!(ViaProxy.getCurrentProxyServer().getChannel().localAddress() instanceof InetSocketAddress bindAddress)) {
@@ -79,6 +84,14 @@ public class TransferPacketHandler extends PacketHandler {
         }
 
         return true;
+    }
+
+    static String getTransferTargetHost(final HostAndPort clientHandshakeAddress, final boolean loginRoutingEnabled) {
+        if (clientHandshakeAddress == null || !loginRoutingEnabled) {
+            return clientHandshakeAddress == null ? null : clientHandshakeAddress.getHost();
+        }
+        final String ordinaryEntryHost = LoginRoutingUtil.getOrdinaryEntryHost(clientHandshakeAddress.getHost());
+        return ordinaryEntryHost != null ? ordinaryEntryHost : clientHandshakeAddress.getHost();
     }
 
     static boolean shouldReconnectThroughViaProxy(final TransferRoutingMode mode) {

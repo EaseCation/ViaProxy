@@ -1,5 +1,6 @@
 package net.raphimc.viaproxy.proxy.packethandler;
 
+import com.google.common.net.HostAndPort;
 import net.raphimc.viaproxy.plugins.events.TransferRoutingEvent;
 import org.junit.jupiter.api.Test;
 
@@ -7,6 +8,7 @@ import java.net.InetSocketAddress;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransferRoutingDecisionTest {
@@ -33,5 +35,23 @@ class TransferRoutingDecisionTest {
     @Test
     void unknownModeFailsClosed() {
         assertTrue(TransferPacketHandler.shouldReconnectThroughViaProxy(null));
+    }
+
+    @Test
+    void loginSessionReturnTransferUsesOrdinaryEntryHost() {
+        assertEquals("jeprod.easecation.net", TransferPacketHandler.getTransferTargetHost(HostAndPort.fromParts("jeprod-login.easecation.net", 25565), true));
+        assertEquals("jetest.easecation.net", TransferPacketHandler.getTransferTargetHost(HostAndPort.fromParts("jetest-login.easecation.net", 25565), true));
+    }
+
+    @Test
+    void nonLoginSessionTransferHostIsUnchanged() {
+        assertEquals("jeprod.easecation.net", TransferPacketHandler.getTransferTargetHost(HostAndPort.fromParts("jeprod.easecation.net", 25565), true));
+        assertEquals("bbdev.easecation.net", TransferPacketHandler.getTransferTargetHost(HostAndPort.fromParts("bbdev.easecation.net", 25565), true));
+    }
+
+    @Test
+    void loginRoutingDisabledKeepsOriginalHandshakeHost() {
+        assertEquals("jeprod-login.easecation.net", TransferPacketHandler.getTransferTargetHost(HostAndPort.fromParts("jeprod-login.easecation.net", 25565), false));
+        assertNull(TransferPacketHandler.getTransferTargetHost(null, true));
     }
 }

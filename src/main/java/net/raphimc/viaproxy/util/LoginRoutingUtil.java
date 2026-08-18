@@ -23,6 +23,8 @@ public final class LoginRoutingUtil {
 
     public static final String JETEST_LOGIN_HOST = "jetest-login.easecation.net";
     public static final String JEPROD_LOGIN_HOST = "jeprod-login.easecation.net";
+    public static final String JETEST_ENTRY_HOST = "jetest.easecation.net";
+    public static final String JEPROD_ENTRY_HOST = "jeprod.easecation.net";
 
     private static final String JETEST_LOGIN_ENTRY_HOST = "bbdev.easecation.net";
     private static final int JETEST_LOGIN_ENTRY_PORT = 19133;
@@ -71,6 +73,19 @@ public final class LoginRoutingUtil {
         }
         if (isJeprodLoginHost(handshakeHost)) {
             return jeprodAddress;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the ordinary JE entry hostname for the given login reconnect hostname, or null if the host is not a login reconnect hostname.
+     */
+    public static String getOrdinaryEntryHost(final String handshakeHost) {
+        if (isJetestLoginHost(handshakeHost)) {
+            return JETEST_ENTRY_HOST;
+        }
+        if (isJeprodLoginHost(handshakeHost)) {
+            return JEPROD_ENTRY_HOST;
         }
         return null;
     }

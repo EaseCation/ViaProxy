@@ -52,4 +52,17 @@ class LoginRoutingUtilTest {
         assertNull(LoginRoutingUtil.getLoginBackendAddress(null, "jetest-backend:19133", "jeprod-backend:19132"));
     }
 
+    @Test
+    void testLoginHostsMapToOrdinaryEntryHosts() {
+        assertEquals("jetest.easecation.net", LoginRoutingUtil.getOrdinaryEntryHost("jetest-login.easecation.net"));
+        assertEquals("jeprod.easecation.net", LoginRoutingUtil.getOrdinaryEntryHost("jeprod-login.easecation.net"));
+        assertEquals("jetest.easecation.net", LoginRoutingUtil.getOrdinaryEntryHost("JETEST-LOGIN.EASECATION.NET"));
+        assertEquals("jeprod.easecation.net", LoginRoutingUtil.getOrdinaryEntryHost("JEPROD-LOGIN.EASECATION.NET"));
+        assertNull(LoginRoutingUtil.getOrdinaryEntryHost("jetest.easecation.net"));
+        assertNull(LoginRoutingUtil.getOrdinaryEntryHost("jeprod.easecation.net"));
+        assertNull(LoginRoutingUtil.getOrdinaryEntryHost("bbdev.easecation.net"));
+        assertNull(LoginRoutingUtil.getOrdinaryEntryHost("play.easecation.net"));
+        assertNull(LoginRoutingUtil.getOrdinaryEntryHost(null));
+    }
+
 }
