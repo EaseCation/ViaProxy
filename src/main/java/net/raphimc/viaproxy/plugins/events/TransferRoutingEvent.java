@@ -28,6 +28,8 @@ public final class TransferRoutingEvent {
     private final ProxyConnection proxyConnection;
     private final InetSocketAddress originalTarget;
     private TransferRoutingMode mode = TransferRoutingMode.RECONNECT_THROUGH_VIAPROXY;
+    private InetSocketAddress targetOverride;
+    private InetSocketAddress reconnectAddress;
 
     public TransferRoutingEvent(final ProxyConnection proxyConnection, final InetSocketAddress originalTarget) {
         this.proxyConnection = proxyConnection;
@@ -48,5 +50,51 @@ public final class TransferRoutingEvent {
 
     public void setMode(final TransferRoutingMode mode) {
         this.mode = Objects.requireNonNull(mode, "mode");
+    }
+
+    public InetSocketAddress getTarget() {
+        return this.targetOverride != null ? this.targetOverride : this.originalTarget;
+    }
+
+    public boolean hasTargetOverride() {
+        return this.targetOverride != null;
+    }
+
+    public void setTarget(final InetSocketAddress target) {
+        this.targetOverride = validateAddress(target);
+    }
+
+    public void setTargetHost(final String host) {
+        this.setTarget(InetSocketAddress.createUnresolved(host, this.getTarget().getPort()));
+    }
+
+    public void setTargetPort(final int port) {
+        this.setTarget(InetSocketAddress.createUnresolved(this.getTarget().getHostString(), port));
+    }
+
+    public InetSocketAddress getReconnectAddress() {
+        return this.reconnectAddress;
+    }
+
+    public void setReconnectAddress(final InetSocketAddress address) {
+        this.reconnectAddress = address != null ? validateAddress(address) : null;
+    }
+
+    /** 在全部参数校验成功后一次应用决策；null 目标表示沿用原始目标。 */
+    public void setRouting(final TransferRoutingMode mode, final InetSocketAddress target, final InetSocketAddress reconnectAddress) {
+        Objects.requireNonNull(mode, "mode");
+        if (target != null) validateAddress(target);
+        if (reconnectAddress != null) validateAddress(reconnectAddress);
+        this.mode = mode;
+        this.targetOverride = target;
+        this.reconnectAddress = reconnectAddress;
+    }
+
+    private static InetSocketAddress validateAddress(final InetSocketAddress address) {
+        Objects.requireNonNull(address, "address");
+        if (address.getHostString().isBlank() || address.getPort() < 1 || address.getPort() > 65535) {
+            throw new IllegalArgumentException("Routing address must have a host and a port between 1 and 65535");
+        }
+        return address;
     }
 }

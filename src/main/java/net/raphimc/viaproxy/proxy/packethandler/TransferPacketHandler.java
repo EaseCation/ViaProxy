@@ -17,7 +17,6 @@
  */
 package net.raphimc.viaproxy.proxy.packethandler;
 
-import com.google.common.net.HostAndPort;
 import io.netty.channel.ChannelFutureListener;
 import net.raphimc.netminecraft.packet.Packet;
 import net.raphimc.netminecraft.packet.impl.common.S2CTransferPacket;
@@ -26,7 +25,6 @@ import net.raphimc.viaproxy.ViaProxy;
 import net.raphimc.viaproxy.plugins.events.TransferRoutingEvent;
 import net.raphimc.viaproxy.proxy.session.ProxyConnection;
 import net.raphimc.viaproxy.proxy.util.TransferDataHolder;
-import net.raphimc.viaproxy.util.LoginRoutingUtil;
 import net.raphimc.viaproxy.util.logging.Logger;
 
 import java.net.InetSocketAddress;
@@ -41,35 +39,25 @@ public class TransferPacketHandler extends PacketHandler {
     @Override
     public boolean handleP2S(Packet packet, List<ChannelFutureListener> listeners) {
         if (packet instanceof S2CTransferPacket transferPacket) {
-            final InetSocketAddress newAddress = MinecraftServerAddress.ofResolved(transferPacket.host, transferPacket.port);
             final InetSocketAddress originalTarget = InetSocketAddress.createUnresolved(transferPacket.host, transferPacket.port);
             final TransferRoutingEvent routingEvent = new TransferRoutingEvent(this.proxyConnection, originalTarget);
             try {
                 ViaProxy.EVENT_MANAGER.call(routingEvent);
             } catch (Throwable throwable) {
-                Logger.LOGGER.error("A transfer routing event listener failed; reconnecting through ViaProxy", throwable);
+                Logger.LOGGER.error("Transfer routing event dispatch failed", throwable);
             }
+            final InetSocketAddress target = routingEvent.getTarget();
             if (!shouldReconnectThroughViaProxy(routingEvent.getMode())) {
+                transferPacket.host = target.getHostString();
+                transferPacket.port = target.getPort();
                 return true;
             }
 
-            final String loginReconnectHost = ViaProxy.getConfig().isLoginRoutingEnabled() ? LoginRoutingUtil.getLoginReconnectHost(originalTarget) : null;
-            if (loginReconnectHost != null && this.proxyConnection.getClientHandshakeAddress() != null) {
-                transferPacket.host = loginReconnectHost;
-                transferPacket.port = this.proxyConnection.getClientHandshakeAddress().getPort();
-                Logger.u_info("transfer", this.proxyConnection, "Rewriting login transfer target " + originalTarget + " to " + loginReconnectHost + ":" + transferPacket.port);
-                return true;
-            }
-
-            TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
-
-            if (this.proxyConnection.getClientHandshakeAddress() != null) {
-                final String transferHost = getTransferTargetHost(this.proxyConnection.getClientHandshakeAddress(), ViaProxy.getConfig().isLoginRoutingEnabled());
-                transferPacket.host = transferHost;
-                transferPacket.port = this.proxyConnection.getClientHandshakeAddress().getPort();
-                if (!transferHost.equals(this.proxyConnection.getClientHandshakeAddress().getHost())) {
-                    Logger.u_info("transfer", this.proxyConnection, "Rewriting login return transfer target " + originalTarget + " to " + transferHost + ":" + transferPacket.port);
-                }
+            final InetSocketAddress reconnectAddress;
+            if (routingEvent.getReconnectAddress() != null) {
+                reconnectAddress = routingEvent.getReconnectAddress();
+            } else if (this.proxyConnection.getClientHandshakeAddress() != null) {
+                reconnectAddress = InetSocketAddress.createUnresolved(this.proxyConnection.getClientHandshakeAddress().getHost(), this.proxyConnection.getClientHandshakeAddress().getPort());
             } else {
                 Logger.u_warn("transfer", this.proxyConnection, "Client handshake address is invalid, using ViaProxy bind address instead");
                 if (!(ViaProxy.getCurrentProxyServer().getChannel().localAddress() instanceof InetSocketAddress bindAddress)) {
@@ -78,20 +66,19 @@ public class TransferPacketHandler extends PacketHandler {
                 if (!(this.proxyConnection.getC2P().localAddress() instanceof InetSocketAddress clientAddress)) {
                     throw new IllegalArgumentException("Client address must be an InetSocketAddress");
                 }
-                transferPacket.host = clientAddress.getHostString();
-                transferPacket.port = bindAddress.getPort();
+                reconnectAddress = InetSocketAddress.createUnresolved(clientAddress.getHostString(), bindAddress.getPort());
             }
+
+            // 显式目标按精确端点连接；未改写目标仍保留原 SRV 解析行为。
+            final InetSocketAddress newAddress = routingEvent.hasTargetOverride()
+                    ? new InetSocketAddress(target.getHostString(), target.getPort())
+                    : MinecraftServerAddress.ofResolved(target.getHostString(), target.getPort());
+            TransferDataHolder.addTempRedirect(this.proxyConnection.getC2P(), newAddress);
+            transferPacket.host = reconnectAddress.getHostString();
+            transferPacket.port = reconnectAddress.getPort();
         }
 
         return true;
-    }
-
-    static String getTransferTargetHost(final HostAndPort clientHandshakeAddress, final boolean loginRoutingEnabled) {
-        if (clientHandshakeAddress == null || !loginRoutingEnabled) {
-            return clientHandshakeAddress == null ? null : clientHandshakeAddress.getHost();
-        }
-        final String ordinaryEntryHost = LoginRoutingUtil.getOrdinaryEntryHost(clientHandshakeAddress.getHost());
-        return ordinaryEntryHost != null ? ordinaryEntryHost : clientHandshakeAddress.getHost();
     }
 
     static boolean shouldReconnectThroughViaProxy(final TransferRoutingMode mode) {

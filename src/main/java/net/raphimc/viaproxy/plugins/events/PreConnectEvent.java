@@ -33,16 +33,22 @@ public class PreConnectEvent extends EventCancellable {
     private final HostAndPort clientHandshakeAddress;
     private final IntendedState intendedState;
     private final Channel clientChannel;
+    private final boolean fromTemporaryRedirect;
 
     private String cancelMessage = "§cCould not connect to the backend server! (Server is blacklisted)";
 
     public PreConnectEvent(final SocketAddress serverAddress, final ProtocolVersion serverVersion, final ProtocolVersion clientVersion, final HostAndPort clientHandshakeAddress, final IntendedState intendedState, final Channel clientChannel) {
+        this(serverAddress, serverVersion, clientVersion, clientHandshakeAddress, intendedState, clientChannel, false);
+    }
+
+    public PreConnectEvent(final SocketAddress serverAddress, final ProtocolVersion serverVersion, final ProtocolVersion clientVersion, final HostAndPort clientHandshakeAddress, final IntendedState intendedState, final Channel clientChannel, final boolean fromTemporaryRedirect) {
         this.serverAddress = serverAddress;
         this.serverVersion = serverVersion;
         this.clientVersion = clientVersion;
         this.clientHandshakeAddress = clientHandshakeAddress;
         this.intendedState = intendedState;
         this.clientChannel = clientChannel;
+        this.fromTemporaryRedirect = fromTemporaryRedirect;
     }
 
     public SocketAddress getServerAddress() {
@@ -75,6 +81,10 @@ public class PreConnectEvent extends EventCancellable {
 
     public Channel getClientChannel() {
         return this.clientChannel;
+    }
+
+    public boolean isFromTemporaryRedirect() {
+        return this.fromTemporaryRedirect;
     }
 
     public String getCancelMessage() {

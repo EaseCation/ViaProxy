@@ -17,5 +17,20 @@
  */
 package net.raphimc.viaproxy.plugins.events;
 
-public class ProxyStartEvent {
+import net.raphimc.viaproxy.plugins.events.types.EventCancellable;
+
+import java.util.Objects;
+
+public class ProxyStartEvent extends EventCancellable {
+
+    private String cancelReason = "Proxy startup was cancelled by a plugin";
+
+    public String getCancelReason() {
+        return this.cancelReason;
+    }
+
+    public void setCancelReason(final String reason) {
+        this.cancelReason = Objects.requireNonNull(reason, "reason");
+        this.setCancelled(true);
+    }
 }
