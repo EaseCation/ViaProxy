@@ -31,6 +31,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ViaProxyNettyPipelineProviderTest {
 
     @Test
+    void fullPingIdsUseActualFrontendVersion() {
+        final EmbeddedChannel c2p = new EmbeddedChannel();
+        final EmbeddedChannel p2s = new EmbeddedChannel();
+        final ProxyConnection connection = new ProxyConnection(new ChannelInitializer<>() {
+            @Override protected void initChannel(final Channel channel) { }
+        }, c2p);
+        p2s.attr(ProxyConnection.PROXY_CONNECTION_ATTRIBUTE_KEY).set(connection);
+        final UserConnectionImpl user = new UserConnectionImpl(p2s, true);
+        final ViaProxyNettyPipelineProvider provider = new ViaProxyNettyPipelineProvider();
+        try {
+            connection.setClientVersion(ProtocolVersion.v1_16_4);
+            assertFalse(provider.supportsFullJavaPingIds(user));
+            connection.setClientVersion(ProtocolVersion.v1_17);
+            assertTrue(provider.supportsFullJavaPingIds(user));
+            connection.setClientVersion(ProtocolVersion.v1_21_7);
+            assertTrue(provider.supportsFullJavaPingIds(user));
+        } finally {
+            p2s.finishAndReleaseAll();
+            c2p.finishAndReleaseAll();
+        }
+    }
+
+    @Test
     void requiresViaAndBothNetMinecraftRegistriesToOwnTheSameState() {
         final EmbeddedChannel c2p = new EmbeddedChannel();
         final EmbeddedChannel p2s = new EmbeddedChannel();

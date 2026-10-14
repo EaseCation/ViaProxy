@@ -73,6 +73,14 @@ public class ViaProxyConfig {
     @Description("The connect timeout for backend server connections in milliseconds.")
     private int connectTimeout = 8000;
 
+    @NotReloadable
+    @Option("bedrock-raknet-flush-interval-ms")
+    @Description({
+            "Bedrock RakNet batch send interval in milliseconds (5-10, default 10). Restart the proxy to apply.",
+            "Lower values reduce batching delay but increase timer wakeups and may increase UDP packet count."
+    })
+    private int bedrockRakNetFlushIntervalMs = 10;
+
     @Option("proxy-online-mode")
     @Description({
             "Proxy Online Mode allows you to see skins on online mode servers and use the signed chat features.",
@@ -241,7 +249,9 @@ public class ViaProxyConfig {
         final ConfigLoader<ViaProxyConfig> configLoader = new ConfigLoader<>(ViaProxyConfig.class);
         configLoader.getConfigOptions().setResetInvalidOptions(true).setRewriteConfig(true).setCommentSpacing(1);
         try {
-            return configLoader.load(ConfigProvider.file(configFile)).getConfigInstance();
+            final ViaProxyConfig config = configLoader.load(ConfigProvider.file(configFile)).getConfigInstance();
+            config.getBedrockRakNetFlushIntervalMs();
+            return config;
         } catch (Throwable e) {
             throw new RuntimeException("Failed to load config", e);
         }
@@ -304,6 +314,7 @@ public class ViaProxyConfig {
                 }
             }
 
+            this.getBedrockRakNetFlushIntervalMs();
             ViaProxy.EVENT_MANAGER.call(new PostOptionsParseEvent(options));
             return;
         } catch (OptionException e) {
@@ -359,6 +370,13 @@ public class ViaProxyConfig {
     public void setConnectTimeout(final int connectTimeout) {
         this.connectTimeout = connectTimeout;
         this.save();
+    }
+
+    public int getBedrockRakNetFlushIntervalMs() {
+        if (this.bedrockRakNetFlushIntervalMs < 5 || this.bedrockRakNetFlushIntervalMs > 10) {
+            throw new IllegalArgumentException("bedrock-raknet-flush-interval-ms must be between 5 and 10");
+        }
+        return this.bedrockRakNetFlushIntervalMs;
     }
 
     public boolean isProxyOnlineMode() {

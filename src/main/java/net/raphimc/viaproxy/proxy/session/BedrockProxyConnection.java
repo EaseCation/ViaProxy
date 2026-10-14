@@ -99,6 +99,8 @@ public class BedrockProxyConnection extends ProxyConnection {
                     }
                     return channel;
                 })
+                // 仅在会话启动前配置周期，保持原有自动发送、确认、重传和可靠顺序。
+                .option(RakChannelOption.RAK_FLUSH_INTERVAL, ViaProxy.getConfig().getBedrockRakNetFlushIntervalMs())
                 .option(RakChannelOption.RAK_PROTOCOL_VERSION, ProtocolConstants.BEDROCK_RAKNET_PROTOCOL_VERSION)
                 .option(RakChannelOption.RAK_COMPATIBILITY_MODE, true)
                 .option(RakChannelOption.RAK_CLIENT_INTERNAL_ADDRESSES, 20)

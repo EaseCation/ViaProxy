@@ -20,6 +20,7 @@ package net.raphimc.viaproxy.protocoltranslator.providers;
 import com.viaversion.viaversion.api.connection.UserConnection;
 import com.viaversion.viaversion.api.protocol.packet.PacketType;
 import com.viaversion.viaversion.api.protocol.packet.State;
+import com.viaversion.viaversion.api.protocol.version.ProtocolVersion;
 import io.netty.channel.Channel;
 import net.lenni0451.commons.unchecked.Sneaky;
 import net.raphimc.netminecraft.constants.ConnectionState;
@@ -37,6 +38,11 @@ import org.cloudburstmc.netty.handler.codec.raknet.common.RakSessionCodec;
 import javax.crypto.SecretKey;
 
 public class ViaProxyNettyPipelineProvider extends NettyPipelineProvider {
+
+    @Override
+    public boolean supportsFullJavaPingIds(final UserConnection user) {
+        return ProxyConnection.fromUserConnection(user).getClientVersion().newerThanOrEqualTo(ProtocolVersion.v1_17);
+    }
 
     @Override
     public void beginJavaClientboundPacket(final UserConnection user, final String origin,
